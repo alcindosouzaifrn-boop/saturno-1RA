@@ -2,47 +2,47 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Saturno em RA — Narração por voz</title>
+  <title>Saturno em RA — Voz (TTS + STT)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
   <style>
     body { margin:0; background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
     header { padding:16px; text-align:center; }
     model-viewer { width:100%; height:62vh; background:#000; display:block; }
-    .toolbar { display:flex; gap:8px; justify-content:center; padding:10px; flex-wrap:wrap; }
-    .toolbar button { padding:10px 12px; border-radius:10px; border:1px solid #2a2a2a; background:#3b82f6; color:#fff; font-weight:600; }
-    .hint { text-align:center; color:#a3a3a3; font-size:12px; padding:8px 0 12px; }
+    .toolbar { display:flex; gap:8px; justify-content:center; padding:12px; flex-wrap:wrap; }
+    .btn { padding:10px 12px; border-radius:10px; border:1px solid #2a2a2a; background:#3b82f6; color:#fff; font-weight:600; }
+    .btn.secondary { background:#1f2937; color:#dbeafe; }
+    .status { text-align:center; font-size:12px; color:#a3a3a3; padding:6px 12px 12px; }
   </style>
 </head>
 <body>
-  <header><h1>🌌 Saturno em Realidade Aumentada — com narração</h1></header>
+  <header><h1>🌌 Saturno em RA — narração e perguntas por voz</h1></header>
 
+  <!-- NADA de comentários dentro desta tag -->
   <model-viewer id="mv"
     src="saturno.glb"
     ar
     ar-modes="webxr scene-viewer"
-    ar-placement="floor"
-    ar-hit-test
     camera-controls
     auto-rotate
-    rotation-per-second="25deg"
-    shadow-intensity="1"
-    exposure="1"
     alt="Modelo 3D de Saturno em RA">
   </model-viewer>
 
   <div class="toolbar">
-    <button id="ar-webxr">AR com interação (WebXR)</button>
-    <button id="ar-compat">AR (compatibilidade)</button>
+    <button id="btnAR" class="btn">AR com interação (WebXR)</button>
+    <button id="btnMic" class="btn secondary">🎤 Microfone: desligado</button>
+    <button id="btnTestTTS" class="btn secondary">🔊 Testar voz</button>
   </div>
-  <p class="hint">No Android/Chrome, use “AR com interação (WebXR)”. Se não ouvir, aumente o volume de mídia e desative o modo silencioso.</p>
+  <div id="status" class="status">Dica: use “AR com interação (WebXR)”. Ao entrar no AR, será narrada uma breve descrição. Depois, fale: “quantas luas tem Saturno?”, “do que são feitos os anéis?”, “maior”, “menor”, “reset”.</div>
 
   <script>
     const mv = document.getElementById('mv');
-    const btnARWebXR = document.getElementById('ar-webxr');
-    const btnARCompat = document.getElementById('ar-compat');
+    const btnAR = document.getElementById('btnAR');
+    const btnMic = document.getElementById('btnMic');
+    const btnTestTTS = document.getElementById('btnTestTTS');
+    const statusEl = document.getElementById('status');
 
-    // ===== Voz (TTS) =====
+    // ====== TTS (fala) ======
     let voiceOn = true, ptVoice = null;
     function pickPtVoice() {
       if (!('speechSynthesis' in window)) return;
@@ -55,36 +55,127 @@
     }
     function speak(text) {
       if (!voiceOn || !('speechSynthesis' in window)) return;
+      try { speechSynthesis.cancel(); } catch(e) {}
       const u = new SpeechSynthesisUtterance(text);
       u.lang = 'pt-BR'; u.rate = 1; u.pitch = 1; u.volume = 1;
       if (ptVoice) u.voice = ptVoice;
-      try { speechSynthesis.cancel(); } catch(e) {}
       speechSynthesis.speak(u);
     }
-    const intro = "Este é Saturno, o segundo maior planeta do Sistema Solar. Seus anéis são compostos principalmente por gelo de água e poeira. Entre suas luas, destacam-se Titã e Encélado.";
 
-    // ===== Entrar em RA =====
-    btnARWebXR.addEventListener('click', async () => {
+    const intro = "Este é Saturno, o segundo maior planeta do Sistema Solar. Seus anéis são compostos principalmente por gelo de água misturado com poeira e fragmentos rochosos. Entre suas luas, destacam-se Titã e Encélado.";
+
+    // ====== STT (reconhecimento de fala) ======
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let rec = null, recOn = false;
+    function setupRecognition() {
+      if (!SR) return null;
+      const r = new SR();
+      r.lang = 'pt-BR';
+      r.continuous = true;
+      r.interimResults = false;
+      r.onstart = () => setStatus("Microfone ouvindo… Faça perguntas ou diga comandos como “maior”, “menor”, “reset”.");
+      r.onend = () => { if (recOn) try { r.start(); } catch(e) {} };
+      r.onerror = (e) => setStatus("Erro no microfone: " + (e.error || e.message || e.toString()));
+      r.onresult = (ev) => {
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          if (ev.results[i].isFinal) {
+            const said = ev.results[i][0].transcript.trim();
+            handleSpeech(said);
+          }
+        }
+      };
+      return r;
+    }
+    function toggleMic() {
+      if (!rec) rec = setupRecognition();
+      if (!rec) { setStatus("Reconhecimento de voz não suportado neste navegador."); return; }
+      if (!recOn) {
+        recOn = true;
+        btnMic.textContent = "🎤 Microfone: ligado";
+        try { rec.start(); } catch(e) {}
+      } else {
+        recOn = false;
+        btnMic.textContent = "🎤 Microfone: desligado";
+        try { rec.stop(); } catch(e) {}
+      }
+    }
+
+    function setStatus(t) { statusEl.textContent = t; }
+
+    // ====== Lógica de respostas (FAQ + comandos) ======
+    function faqAnswer(q) {
+      const t = q.toLowerCase();
+      if (/quantas.*luas/.test(t)) return "Saturno tem mais de cento e quarenta luas e quase-luas identificadas. Titã e Encélado são as mais conhecidas.";
+      if (/an(e|é)is|aneis|anéis/.test(t) && /(do que|compost|feitos?)/.test(t)) return "Os anéis de Saturno são formados principalmente por gelo de água, com poeira e fragmentos rochosos de vários tamanhos.";
+      if (/gravidade|massa|densidade/.test(t)) return "A gravidade superficial de Saturno é cerca de 10,4 metros por segundo ao quadrado, e sua densidade média é menor que a da água.";
+      if (/dist[aâ]ncia.*sol/.test(t)) return "Saturno orbita a aproximadamente 1 vírgula 4 bilhões de quilômetros do Sol, em média.";
+      if (/rotação|dia/.test(t)) return "O período de rotação de Saturno é de cerca de dez horas e quarenta minutos, variando por latitude.";
+      if (/transla[cç][aã]o|ano/.test(t)) return "Saturno leva cerca de 29 anos e meio terrestres para completar uma volta ao redor do Sol.";
+      return null;
+    }
+
+    // Controlar escala simples
+    let scale = 0.28;
+    function applyScale(s) {
+      scale = Math.max(0.02, Math.min(5.0, s));
+      try { if (mv.model && mv.model.scale) mv.model.scale.set(scale, scale, scale); } catch(e) {}
+      return "Escala ajustada.";
+    }
+
+    function handleSpeech(text) {
+      setStatus("Você disse: " + text);
+      const t = text.toLowerCase();
+
+      // Comandos
+      if (/^\s*(maior|aumentar)\s*$/.test(t)) { speak("Aumentando."); applyScale(scale * 1.25); return; }
+      if (/^\s*(menor|diminuir|reduzir)\s*$/.test(t)) { speak("Diminuindo."); applyScale(scale * 0.8); return; }
+      if (/reset|padr[aã]o|in[ií]cio/.test(t)) { speak("Voltando ao tamanho padrão."); applyScale(0.28); return; }
+
+      // FAQ
+      const ans = faqAnswer(t);
+      if (ans) { speak(ans); return; }
+
+      // Fallback
+      speak("Desculpe, não entendi. Você pode perguntar sobre as luas, os anéis, a gravidade, a distância do Sol, a rotação ou a translação. Ou diga: maior, menor, reset.");
+    }
+
+    // ====== Entrar em RA (WebXR mantém a página ativa) ======
+    btnAR.addEventListener('click', async () => {
+      // Gesto do usuário desbloqueia TTS e pode mostrar prompt do microfone
+      if ('speechSynthesis' in window) speechSynthesis.getVoices();
+      if (!rec) rec = setupRecognition();
+
+      // Força WebXR quando possível (interação continua)
       try {
-        if ('speechSynthesis' in window) speechSynthesis.getVoices(); // desbloqueia por gesto
         if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {
-          mv.setAttribute('ar-modes', 'webxr'); // mantém a página ativa
+          mv.setAttribute('ar-modes', 'webxr');
         }
       } catch(e) {}
+
       if (mv.enterAR) mv.enterAR();
     });
 
-    btnARCompat.addEventListener('click', () => {
-      mv.setAttribute('ar-modes', 'scene-viewer quick-look webxr'); // pode abrir app externo (sem JS ativo)
-      if (mv.enterAR) mv.enterAR();
-    });
-
-    // Narração quando a sessão AR começa (WebXR)
+    // Eventos de status da RA
     mv.addEventListener('ar-status', (ev) => {
-      const status = ev.detail.status || ev.detail;
-      if (status === 'session-started') speak(intro);
-      if (status === 'not-presenting' && 'speechSynthesis' in window) speechSynthesis.cancel();
+      const s = ev.detail.status || ev.detail;
+      if (s === 'session-started') {
+        // Introdução por voz
+        speak(intro);
+        // Liga o microfone automaticamente (pode pedir permissão)
+        if (!rec) rec = setupRecognition();
+        if (rec && !recOn) { recOn = true; btnMic.textContent = "🎤 Microfone: ligado"; try { rec.start(); } catch(e) {} }
+        setStatus("RA iniciada. Você pode falar suas perguntas ou comandos.");
+      } else if (s === 'not-presenting') {
+        // Saiu do AR
+        if ('speechSynthesis' in window) speechSynthesis.cancel();
+        if (rec && recOn) { recOn = false; try { rec.stop(); } catch(e) {} btnMic.textContent = "🎤 Microfone: desligado"; }
+        setStatus("Sessão de RA finalizada.");
+      }
     });
+
+    // Botões auxiliares
+    btnMic.addEventListener('click', toggleMic);
+    btnTestTTS.addEventListener('click', () => speak("Teste de voz. Se você está ouvindo, a narração deve funcionar na RA."));
   </script>
 </body>
 </html>
