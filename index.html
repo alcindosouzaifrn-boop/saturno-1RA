@@ -2,39 +2,171 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <title>Saturno em Realidade Aumentada</title>
+    <title>Saturno em RA — Interação por Chat</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
+      :root { --bg:#0b0b0b; --ink:#e8e8e8; --muted:#9aa0a6; --card:#121212; --accent:#3b82f6; }
+      * { box-sizing: border-box; }
       body {
-        margin: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        background: #000;
-        color: #fff;
-        font-family: sans-serif;
+        margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+        background:var(--bg); color:var(--ink); display:flex; flex-direction:column; min-height:100vh;
       }
-      model-viewer {
-        width: 100%;
-        height: 500px;
-        background: #000;
+      header { padding:16px; text-align:center; }
+      main { display:grid; grid-template-columns: 1fr 360px; gap:16px; padding:16px; max-width:1200px; width:100%; margin:0 auto; }
+      @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+      model-viewer { width:100%; height:520px; background:#000; border-radius:16px; }
+      .panel {
+        background:var(--card); border:1px solid #1f1f1f; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; min-height:520px;
       }
-      h1 { margin: 16px; }
+      .panel h2 { margin:0; padding:12px 16px; border-bottom:1px solid #1f1f1f; font-size:16px; color:#cbd5e1; }
+      .chat-log { flex:1; padding:12px; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+      .msg { max-width:85%; padding:10px 12px; border-radius:14px; line-height:1.35; font-size:14px; }
+      .user { align-self:flex-end; background:#1e293b; color:#e2e8f0; border:1px solid #0b1b2c; }
+      .bot  { align-self:flex-start;  background:#111827; color:#e5e7eb; border:1px solid #1f2937; }
+      .muted { color:var(--muted); font-size:12px; }
+      .composer { display:flex; gap:8px; padding:12px; border-top:1px solid #1f1f1f; background:#0e0e0e; }
+      input[type="text"] {
+        flex:1; padding:12px; border-radius:10px; border:1px solid #262626; background:#0b0b0b; color:#e5e5e5;
+      }
+      button {
+        padding:12px 14px; border-radius:10px; border:1px solid #2a2a2a; background:var(--accent); color:white; cursor:pointer; font-weight:600;
+      }
+      .quick { display:flex; flex-wrap:wrap; gap:8px; padding:10px 12px; border-top:1px dashed #222; }
+      .quick button { background:#1f2937; border:1px solid #273449; color:#dbeafe; }
+      .hint { text-align:center; padding:8px 16px; color:#a3a3a3; }
     </style>
   </head>
   <body>
-    <h1>🌌 Saturno em Realidade Aumentada</h1>
+    <header><h1>🌌 Saturno em Realidade Aumentada — com interação por chat</h1></header>
 
-    <model-viewer
-      src="saturno.glb"
-      ar
-      ar-modes="scene-viewer quick-look webxr"
-      camera-controls
-      auto-rotate
-      autoplay
-      alt="Modelo 3D de Saturno em Realidade Aumentada">
-    </model-viewer>
+    <main>
+      <model-viewer id="saturn"
+        src="saturno.glb"
+        ar
+        ar-modes="scene-viewer quick-look webxr"
+        camera-controls
+        auto-rotate
+        rotation-per-second="25deg"
+        shadow-intensity="1"
+        exposure="1"
+        alt="Modelo 3D de Saturno em Realidade Aumentada">
+      </model-viewer>
 
-    <p>Toque no ícone de RA no celular para visualizar em seu ambiente!</p>
+      <section class="panel" aria-label="Painel de chat">
+        <h2>Chat de Comandos</h2>
+        <div id="log" class="chat-log">
+          <div class="msg bot">Olá! Posso controlar o Saturno. Tente: <em>“girar mais devagar”</em>, <em>“parar rotação”</em>, <em>“maior”</em>, <em>“entrar em RA”</em>.</div>
+          <div class="msg bot muted">Dica: no Android o botão de RA aparece; em desktop não.</div>
+        </div>
+
+        <div class="quick">
+          <button data-q="girar mais devagar">girar mais devagar</button>
+          <button data-q="girar mais rápido">girar mais rápido</button>
+          <button data-q="parar rotação">parar rotação</button>
+          <button data-q="reset">reset</button>
+          <button data-q="maior">maior</button>
+          <button data-q="menor">menor</button>
+          <button data-q="entrar em RA">entrar em RA</button>
+        </div>
+
+        <div class="composer">
+          <input id="ask" type="text" placeholder="Digite um comando (ex.: girar mais devagar)" />
+          <button id="send">Enviar</button>
+        </div>
+        <div class="hint">Depois que estiver funcionando, posso integrar com ChatGPT pela API (modo IA completo).</div>
+      </section>
+    </main>
+
+    <script>
+      const mv = document.getElementById('saturn');
+      const log = document.getElementById('log');
+      const ask = document.getElementById('ask');
+      const send = document.getElementById('send');
+      const quicks = document.querySelectorAll('.quick button');
+
+      // Estado simples
+      let scale = 0.28;      // escala inicial
+      let rot = 25;          // graus/seg
+      let autoRotate = true; // rotação ligada?
+
+      // Quando o modelo carregar, aplicamos a escala inicial
+      mv.addEventListener('load', () => {
+        try {
+          if (mv.model && mv.model.scale) mv.model.scale.set(scale, scale, scale);
+        } catch (e) { /* versões antigas podem não expor scale; ignorar */ }
+      });
+
+      function setScale(newS) {
+        scale = Math.max(0.02, Math.min(5.0, newS));
+        try { if (mv.model?.scale) mv.model.scale.set(scale, scale, scale); } catch(e){}
+        return `Escala: ${(scale*100).toFixed(0)}%`;
+      }
+      function setRotationSpeed(newDegPerSec) {
+        rot = Math.max(0, Math.min(120, newDegPerSec));
+        mv.setAttribute('rotation-per-second', rot + 'deg');
+        if (rot === 0) { mv.removeAttribute('auto-rotate'); autoRotate = false; }
+        else if (!autoRotate) { mv.setAttribute('auto-rotate',''); autoRotate = true; }
+        return rot === 0 ? 'Rotação parada.' : `Rotação em ${rot}°/s.`;
+      }
+      function stopRotation() {
+        rot = 0; mv.removeAttribute('auto-rotate'); autoRotate = false;
+        mv.setAttribute('rotation-per-second','0deg');
+        return 'Rotação parada.';
+      }
+      function resetAll() {
+        scale = 0.28; setRotationSpeed(25);
+        try { if (mv.model?.scale) mv.model.scale.set(scale, scale, scale); } catch(e){}
+        return 'Voltei ao padrão (escala 28%, rotação 25°/s).';
+      }
+      async function enterAR() {
+        if (mv.enterAR) { mv.enterAR(); return 'Abrindo em RA (Android).';
+        } else { return 'Abertura em RA não suportada neste dispositivo.'; }
+      }
+
+      function addMsg(text, who='bot') {
+        const div = document.createElement('div');
+        div.className = 'msg ' + who;
+        div.innerHTML = text;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function interpret(command) {
+        const t = command.toLowerCase();
+
+        // Rotação
+        if (/(parar|pausar).*(giro|rotação)/.test(t) || /^parar$/.test(t)) return stopRotation();
+        if (/(girar|rotacionar).*(devagar|lento)/.test(t) || /(mais devagar)/.test(t)) return setRotationSpeed(Math.max(0, rot - 10));
+        if (/(girar|rotacionar).*(rápido|rapido|veloz)/.test(t) || /(mais rápido|mais rapido)/.test(t)) return setRotationSpeed(Math.min(120, rot + 10));
+        if (/reset|padr[aã]o|in[ií]cio/.test(t)) return resetAll();
+
+        // Escala
+        if (/maior|aumentar|ampliar|zoom in/.test(t)) return setScale(scale * 1.25);
+        if (/menor|diminuir|reduzir|zoom out/.test(t)) return setScale(scale * 0.8);
+
+        // RA
+        if (/entrar.*ra|abrir.*ra|realidade aumentada/.test(t)) { enterAR(); return 'Tentando abrir em RA…'; }
+
+        // Perguntas rápidas (FAQ sem IA)
+        if (/an[eé]is.*(do que|composta|compostos|feitos)/.test(t)) return 'Os anéis de Saturno são compostos principalmente por gelo de água com poeira e fragmentos rochosos.';
+        if (/quantas.*luas|n[uú]meros?.*luas/.test(t)) return 'Saturno tem mais de 140 luas e “quase-luas” identificadas; Titã e Encélado são algumas das mais famosas.';
+        if (/gravidade|massa|raio/.test(t)) return 'Saturno tem densidade média baixa (menor que a da água) e gravidade superficial ~10,4 m/s²; é um gigante gasoso com raio ~9,5 vezes o da Terra.';
+        if (/n[aã]o aparece.*[íi]cone.*ra/.test(t)) return 'No desktop o botão de RA não aparece. Teste no Android com ARCore ou no iPhone com um arquivo .usdz configurado.';
+
+        return 'Não entendi. Tente: “girar mais devagar”, “parar rotação”, “maior”, “entrar em RA”, “reset”.';
+      }
+
+      function submit(cmd) {
+        if (!cmd.trim()) return;
+        addMsg(cmd, 'user');
+        const out = interpret(cmd);
+        addMsg(out, 'bot');
+        ask.value = '';
+      }
+
+      send.addEventListener('click', () => submit(ask.value));
+      ask.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(ask.value); });
+      quicks.forEach(b => b.addEventListener('click', () => submit(b.dataset.q)));
+    </script>
   </body>
 </html>
