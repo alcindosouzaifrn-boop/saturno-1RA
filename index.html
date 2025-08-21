@@ -2,69 +2,39 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <title>Saturno em RA</title>
+    <title>Saturno em Realidade Aumentada</title>
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <style>
       body {
-        margin: 0; background:#000; color:#fff; font-family: sans-serif;
-        display:flex; flex-direction:column; align-items:center;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: #000;
+        color: #fff;
+        font-family: sans-serif;
       }
-      model-viewer { width:100%; height: 520px; background:#000; }
-      .panel { display:flex; gap:8px; padding:10px; flex-wrap:wrap; }
-      button { padding:8px 12px; border:0; border-radius:8px; cursor:pointer; }
-      .hint { opacity:.8; font-size:.95rem; padding:8px 12px; }
+      model-viewer {
+        width: 100%;
+        height: 500px;
+        background: #000;
+      }
+      h1 { margin: 16px; }
     </style>
   </head>
   <body>
-    <h1>🌌 Saturno em RA</h1>
+    <h1>🌌 Saturno em Realidade Aumentada</h1>
 
-    <model-viewer id="saturn"
+    <model-viewer
       src="saturno.glb"
       ar
-      ar-modes="webxr scene-viewer"
-      ar-placement="floor"
-      ar-scale="fixed"
-      ar-hit-test
+      ar-modes="scene-viewer quick-look webxr"
       camera-controls
       auto-rotate
-      shadow-intensity="1"
-      exposure="1"
-      alt="Saturno em Realidade Aumentada">
+      autoplay
+      alt="Modelo 3D de Saturno em Realidade Aumentada">
     </model-viewer>
 
-    <div class="panel">
-      <button id="smaller">Diminuir</button>
-      <button id="bigger">Aumentar</button>
-      <button id="reset">Tamanho padrão</button>
-      <button id="enterAR">Abrir em RA</button>
-    </div>
-    <div class="hint">Dica: escaneie o piso devagar, com boa iluminação, até aparecer o retículo. Toque para posicionar.</div>
-
-    <script>
-      const mv = document.querySelector('#saturn');
-
-      // Define uma escala inicial menor assim que o modelo carrega
-      mv.addEventListener('load', () => {
-        const s = 0.25; // 25% do tamanho original
-        if (mv.model && mv.model.scale) mv.model.scale.set(s, s, s);
-      });
-
-      // Controles de escala (funciona no 3D e em AR)
-      function getScale() {
-        // Lê o X atual da escala (assumindo uniforme)
-        return mv.model?.scale?.x ?? 1.0;
-      }
-      function setScale(s) {
-        const v = Math.max(0.02, Math.min(5.0, s)); // limites de 2% a 500%
-        if (mv.model && mv.model.scale) mv.model.scale.set(v, v, v);
-      }
-
-      document.querySelector('#smaller').onclick = () => setScale(getScale() * 0.8);
-      document.querySelector('#bigger').onclick  = () => setScale(getScale() * 1.25);
-      document.querySelector('#reset').onclick   = () => setScale(0.25);
-
-      // Abrir diretamente em RA (útil no Android)
-      document.querySelector('#enterAR').onclick = () => mv.enterAR && mv.enterAR();
-    </script>
+    <p>Toque no ícone de RA no celular para visualizar em seu ambiente!</p>
   </body>
 </html>
