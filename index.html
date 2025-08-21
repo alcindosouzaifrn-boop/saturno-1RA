@@ -2,53 +2,32 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Saturno em RA — Interação em AR (WebXR)</title>
-  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <title>Saturno em RA — Narração por voz</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
   <style>
     :root { --bg:#0b0b0b; --ink:#e8e8e8; --muted:#9aa0a6; --card:#121212; --accent:#3b82f6; }
     * { box-sizing: border-box; }
-    body {
-      margin:0; background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      min-height:100vh; display:flex; flex-direction:column;
-    }
+    body { margin:0; background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; min-height:100vh; display:flex; flex-direction:column; }
     header { padding:16px; text-align:center; }
-    model-viewer { width:100%; height: 62vh; background:#000; }
-    .toolbar {
-      display:flex; gap:8px; justify-content:center; padding:10px; flex-wrap:wrap;
-    }
+    model-viewer { width:100%; height:62vh; background:#000; }
+    .toolbar { display:flex; gap:8px; justify-content:center; padding:10px; flex-wrap:wrap; }
     .toolbar button {
       padding:10px 12px; border-radius:10px; border:1px solid #2a2a2a; cursor:pointer;
       background:var(--accent); color:white; font-weight:600;
     }
-    /* Painel de chat flutuante que fica visível também no AR WebXR */
-    .chat {
-      position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 10;
-      display: grid; grid-template-columns: 1fr auto; gap:8px;
-      background: rgba(18,18,18,.85); border: 1px solid #262626; border-radius: 14px; backdrop-filter: blur(6px);
-      padding: 8px; box-shadow: 0 6px 30px rgba(0,0,0,.45);
-    }
-    .chat input[type="text"] {
-      padding: 12px; border-radius: 10px; border:1px solid #333; background:#0b0b0b; color:#e5e5e5;
-    }
-    .chat button { padding: 12px 14px; border-radius: 10px; border:1px solid #2a2a2a; background:#1f2937; color:#dbeafe; font-weight:600; }
-    .chat .log {
-      grid-column: 1 / -1;
-      max-height: 24vh; overflow:auto; display:flex; flex-direction:column; gap:8px; padding:6px 4px 0 4px;
-    }
-    .msg { max-width: 90%; padding:8px 10px; border-radius: 12px; font-size: 14px; line-height:1.35; }
-    .bot { align-self:flex-start; background:#111827; border:1px solid #1f2937; color:#e5e7eb; }
-    .user { align-self:flex-end; background:#1e293b; border:1px solid #0b1b2c; color:#e2e8f0; }
-    .hint { text-align:center; color:#a3a3a3; font-size: 12px; padding: 6px 0 10px; }
+    .toggles { display:flex; gap:8px; justify-content:center; padding:4px 10px 10px; flex-wrap:wrap; }
+    .toggles button { padding:8px 10px; border-radius:10px; border:1px solid #2a2a2a; background:#1f2937; color:#dbeafe; font-weight:600; }
+    .hint { text-align:center; color:#a3a3a3; font-size:12px; padding: 6px 0 10px; }
   </style>
 </head>
 <body>
-  <header><h1>🌌 Saturno em Realidade Aumentada — interação durante a RA</h1></header>
+  <header><h1>🌌 Saturno em Realidade Aumentada — com narração por voz</h1></header>
 
   <model-viewer id="mv"
     src="saturno.glb"
     ar
-    ar-modes="webxr scene-viewer"  <!-- WebXR primeiro para manter a interação -->
+    ar-modes="webxr scene-viewer"      <!-- prioriza WebXR para manter a página ativa -->
     ar-placement="floor"
     ar-hit-test
     camera-controls
@@ -62,142 +41,99 @@
   <div class="toolbar">
     <button id="ar-webxr">AR com interação (WebXR)</button>
     <button id="ar-compat">AR (compatibilidade)</button>
-    <button id="b-maior">Maior</button>
-    <button id="b-menor">Menor</button>
-    <button id="b-reset">Reset</button>
   </div>
 
-  <!-- Chat flutuante (fica por cima também no AR-WebXR) -->
-  <section class="chat" aria-label="Chat de comandos">
-    <div id="log" class="log">
-      <div class="msg bot">Olá! No **AR com interação (WebXR)** o chat continua ativo. Tente: “maior”, “menor”, “reset”, “entrar em RA”, “quantas luas tem saturno?”.</div>
-      <div class="msg bot">Dica: mova o celular devagar para detectar o piso; toque para posicionar Saturno.</div>
-    </div>
-    <input id="ask" type="text" placeholder="Digite um comando (ex.: maior, entrar em RA, quantas luas...)" />
-    <button id="send">Enviar</button>
-    <div class="hint">Se abrir via Scene Viewer (app externo), a interação em tempo real não funciona. Use “AR com interação (WebXR)”.</div>
-  </section>
+  <div class="toggles">
+    <button id="toggle-voice">🔊 Voz: ativada</button>
+    <button id="test-voice">▶️ Testar voz</button>
+  </div>
+
+  <p class="hint">
+    Dica: no Android/Chrome, toque em “AR com interação (WebXR)”. Se não ouvir áudio, aumente o <em>Volume de mídia</em> e saia do modo silencioso.
+  </p>
 
   <script>
-    const mv   = document.getElementById('mv');
-    const log  = document.getElementById('log');
-    const ask  = document.getElementById('ask');
-    const send = document.getElementById('send');
+    const mv = document.getElementById('mv');
+    const btnARWebXR = document.getElementById('ar-webxr');
+    const btnARCompat = document.getElementById('ar-compat');
+    const btnToggleVoice = document.getElementById('toggle-voice');
+    const btnTestVoice = document.getElementById('test-voice');
 
-    // Botões rápidos
-    document.getElementById('b-maior').onclick = () => addBoth('maior');
-    document.getElementById('b-menor').onclick = () => addBoth('menor');
-    document.getElementById('b-reset').onclick = () => addBoth('reset');
+    // ====== NARRAÇÃO POR VOZ (TTS) ======
+    let voiceOn = true;
+    let ptVoice = null;
 
-    // Entrar em AR forçando WebXR (mantém interação)
-    document.getElementById('ar-webxr').onclick = async () => {
-      // Se o dispositivo suporta WebXR, mantemos apenas "webxr" para evitar abrir o Scene Viewer
-      try {
-        if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {
-          mv.setAttribute('ar-modes', 'webxr'); // força WebXR
-        } else {
-          addMsg('Seu dispositivo não suporta WebXR; vou tentar abrir pelo modo compatível.', 'bot');
-        }
-      } catch(e) {/* segue adiante */}
-      if (mv.enterAR) mv.enterAR();
-      else addMsg('AR não suportado neste navegador/dispositivo.', 'bot');
-    };
-
-    // AR compatibilidade (pode abrir Scene Viewer, sem interação em tempo real)
-    document.getElementById('ar-compat').onclick = () => {
-      mv.setAttribute('ar-modes', 'scene-viewer quick-look webxr');
-      if (mv.enterAR) mv.enterAR();
-      else addMsg('AR não suportado neste navegador/dispositivo.', 'bot');
-    };
-
-    // Estado: escala inicial mais contida
-    let scale = 0.28;
-
-    mv.addEventListener('load', () => {
-      applyScale(scale);
-    });
-
-    // Eventos úteis no AR
-    mv.addEventListener('ar-status', (ev) => {
-      // values comuns: "not-presenting" | "session-started" | "object-placed"
-      addMsg(`AR status: ${ev.detail.status || ev.detail}`, 'bot');
-      if (ev.detail.status === 'session-started') {
-        // Em AR, muitos devices desativam auto-rotate;
-        // mantemos o chat visível para controle de escala/explicações.
-        applyScale(scale);
-      }
-    });
-
-    function addMsg(text, who='bot') {
-      const div = document.createElement('div');
-      div.className = 'msg ' + who;
-      div.innerHTML = text;
-      log.appendChild(div);
-      log.scrollTop = log.scrollHeight;
+    // Carrega vozes disponíveis (pode demorar 1-2s)
+    function pickPtVoice() {
+      const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+      // Preferir pt-BR; senão, qualquer pt-*
+      ptVoice = voices.find(v => /^pt-BR/i.test(v.lang))
+             || voices.find(v => /^pt/i.test(v.lang))
+             || null;
     }
-    function addBoth(text) {
-      addMsg(text, 'user');
-      addMsg(interpret(text), 'bot');
+    if ('speechSynthesis' in window) {
+      pickPtVoice();
+      speechSynthesis.onvoiceschanged = pickPtVoice;
     }
 
-    function applyScale(s) {
-      scale = Math.max(0.02, Math.min(5.0, s));
-      try {
-        if (mv.model && mv.model.scale) {
-          mv.model.scale.set(scale, scale, scale);
-        }
-      } catch(e) {
-        // Em algumas versões antigas o acesso direto pode não existir; ignoramos
-      }
-      return `Escala: ${(scale*100).toFixed(0)}%`;
+    function speak(text) {
+      if (!voiceOn || !('speechSynthesis' in window)) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'pt-BR';
+      u.rate = 1;   // velocidade
+      u.pitch = 1;  // tom
+      u.volume = 1; // volume
+      if (ptVoice) u.voice = ptVoice;
+      try { speechSynthesis.cancel(); } catch(e) {}
+      speechSynthesis.speak(u);
     }
 
-    async function enterARInteractive() {
-      // força WebXR (se suportado) e entra no AR
+    // Texto curto para iniciar quando a RA começar
+    const intro = "Este é Saturno, o segundo maior planeta do Sistema Solar. Seus anéis são compostos principalmente por gelo de água e poeira. Entre suas muitas luas, destacam-se Titã e Encélado.";
+
+    // ====== ENTRADA EM RA ======
+    // Força WebXR para manter a página ativa (chat/voz continuam durante a AR)
+    btnARWebXR.addEventListener('click', async () => {
       try {
+        // ‘Desbloqueia’ as vozes por gesto do usuário (alguns navegadores exigem)
+        if ('speechSynthesis' in window) speechSynthesis.getVoices();
         if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {
           mv.setAttribute('ar-modes', 'webxr');
         }
-      } catch(e) {}
+      } catch(e) { /* segue mesmo assim */ }
       if (mv.enterAR) mv.enterAR();
-      return 'Abrindo RA em modo interativo (WebXR)...';
-    }
+    });
 
-    function interpret(command) {
-      const t = command.toLowerCase().trim();
+    // Compatibilidade (pode abrir Scene Viewer / Quick Look e a página pausa; voz não roda nesse fluxo)
+    btnARCompat.addEventListener('click', () => {
+      mv.setAttribute('ar-modes', 'scene-viewer quick-look webxr');
+      if (mv.enterAR) mv.enterAR();
+    });
 
-      // AR direto
-      if (/entrar.*ra|abrir.*ra|realidade aumentada/.test(t)) {
-        enterARInteractive();
-        return 'Tentando abrir RA em modo interativo (WebXR).';
+    // Quando a sessão AR começa via WebXR, iniciamos a narração
+    mv.addEventListener('ar-status', (ev) => {
+      const status = ev.detail.status || ev.detail;
+      // Possíveis statuses: "not-presenting", "session-started", "object-placed"
+      if (status === 'session-started') {
+        // Fala a introdução ao entrar no AR
+        speak(intro);
       }
+      if (status === 'not-presenting') {
+        // Saiu do AR: interrompe qualquer fala pendente
+        if ('speechSynthesis' in window) speechSynthesis.cancel();
+      }
+    });
 
-      // Escala (funciona no 3D e no AR-WebXR)
-      if (/maior|aumentar|ampliar|zoom in/.test(t)) return applyScale(scale * 1.25);
-      if (/menor|diminuir|reduzir|zoom out/.test(t)) return applyScale(scale * 0.8);
-      if (/reset|padr[aã]o|in[ií]cio/.test(t))      return applyScale(0.28);
+    // ====== CONTROLES DE VOZ ======
+    btnToggleVoice.addEventListener('click', () => {
+      voiceOn = !voiceOn;
+      btnToggleVoice.textContent = voiceOn ? '🔊 Voz: ativada' : '🔇 Voz: desativada';
+      if (!voiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+    });
 
-      // Perguntas rápidas (sem IA ainda)
-      if (/an[eé]is.*(do que|composta|compostos|feitos)/.test(t))
-        return 'Os anéis de Saturno são formados principalmente por gelo de água misturado com poeira e fragmentos rochosos.';
-      if (/quantas.*luas|n[uú]meros?.*luas/.test(t))
-        return 'Saturno tem mais de 140 luas e quase-luas conhecidas; Titã e Encélado são destaques.';
-      if (/gravidade|massa|raio/.test(t))
-        return 'Saturno é um gigante gasoso de baixa densidade; gravidade superficial ~10,4 m/s² e raio ~9,5 vezes o da Terra.';
-
-      return 'Comandos úteis: “entrar em RA”, “maior”, “menor”, “reset”, “quantas luas tem saturno?”.';
-    }
-
-    function submit() {
-      const val = ask.value;
-      if (!val.trim()) return;
-      addMsg(val, 'user');
-      const out = interpret(val);
-      addMsg(out, 'bot');
-      ask.value = '';
-    }
-    send.addEventListener('click', submit);
-    ask.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    btnTestVoice.addEventListener('click', () => {
+      speak("Teste de voz. Se você está ouvindo, a narração funcionará quando a realidade aumentada começar.");
+    });
   </script>
 </body>
 </html>
