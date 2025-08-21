@@ -6,28 +6,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
   <style>
-    :root { --bg:#0b0b0b; --ink:#e8e8e8; --muted:#9aa0a6; --card:#121212; --accent:#3b82f6; }
-    * { box-sizing: border-box; }
-    body { margin:0; background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; min-height:100vh; display:flex; flex-direction:column; }
+    body { margin:0; background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
     header { padding:16px; text-align:center; }
-    model-viewer { width:100%; height:62vh; background:#000; }
+    model-viewer { width:100%; height:62vh; background:#000; display:block; }
     .toolbar { display:flex; gap:8px; justify-content:center; padding:10px; flex-wrap:wrap; }
-    .toolbar button {
-      padding:10px 12px; border-radius:10px; border:1px solid #2a2a2a; cursor:pointer;
-      background:var(--accent); color:white; font-weight:600;
-    }
-    .toggles { display:flex; gap:8px; justify-content:center; padding:4px 10px 10px; flex-wrap:wrap; }
-    .toggles button { padding:8px 10px; border-radius:10px; border:1px solid #2a2a2a; background:#1f2937; color:#dbeafe; font-weight:600; }
-    .hint { text-align:center; color:#a3a3a3; font-size:12px; padding: 6px 0 10px; }
+    .toolbar button { padding:10px 12px; border-radius:10px; border:1px solid #2a2a2a; background:#3b82f6; color:#fff; font-weight:600; }
+    .hint { text-align:center; color:#a3a3a3; font-size:12px; padding:8px 0 12px; }
   </style>
 </head>
 <body>
-  <header><h1>🌌 Saturno em Realidade Aumentada — com narração por voz</h1></header>
+  <header><h1>🌌 Saturno em Realidade Aumentada — com narração</h1></header>
 
   <model-viewer id="mv"
     src="saturno.glb"
     ar
-    ar-modes="webxr scene-viewer"      <!-- prioriza WebXR para manter a página ativa -->
+    ar-modes="webxr scene-viewer"
     ar-placement="floor"
     ar-hit-test
     camera-controls
@@ -42,97 +35,55 @@
     <button id="ar-webxr">AR com interação (WebXR)</button>
     <button id="ar-compat">AR (compatibilidade)</button>
   </div>
-
-  <div class="toggles">
-    <button id="toggle-voice">🔊 Voz: ativada</button>
-    <button id="test-voice">▶️ Testar voz</button>
-  </div>
-
-  <p class="hint">
-    Dica: no Android/Chrome, toque em “AR com interação (WebXR)”. Se não ouvir áudio, aumente o <em>Volume de mídia</em> e saia do modo silencioso.
-  </p>
+  <p class="hint">No Android/Chrome, use “AR com interação (WebXR)”. Se não ouvir, aumente o volume de mídia e desative o modo silencioso.</p>
 
   <script>
     const mv = document.getElementById('mv');
     const btnARWebXR = document.getElementById('ar-webxr');
     const btnARCompat = document.getElementById('ar-compat');
-    const btnToggleVoice = document.getElementById('toggle-voice');
-    const btnTestVoice = document.getElementById('test-voice');
 
-    // ====== NARRAÇÃO POR VOZ (TTS) ======
-    let voiceOn = true;
-    let ptVoice = null;
-
-    // Carrega vozes disponíveis (pode demorar 1-2s)
+    // ===== Voz (TTS) =====
+    let voiceOn = true, ptVoice = null;
     function pickPtVoice() {
-      const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
-      // Preferir pt-BR; senão, qualquer pt-*
-      ptVoice = voices.find(v => /^pt-BR/i.test(v.lang))
-             || voices.find(v => /^pt/i.test(v.lang))
-             || null;
+      if (!('speechSynthesis' in window)) return;
+      const voices = speechSynthesis.getVoices();
+      ptVoice = voices.find(v => /^pt-BR/i.test(v.lang)) || voices.find(v => /^pt/i.test(v.lang)) || null;
     }
     if ('speechSynthesis' in window) {
       pickPtVoice();
       speechSynthesis.onvoiceschanged = pickPtVoice;
     }
-
     function speak(text) {
       if (!voiceOn || !('speechSynthesis' in window)) return;
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'pt-BR';
-      u.rate = 1;   // velocidade
-      u.pitch = 1;  // tom
-      u.volume = 1; // volume
+      u.lang = 'pt-BR'; u.rate = 1; u.pitch = 1; u.volume = 1;
       if (ptVoice) u.voice = ptVoice;
       try { speechSynthesis.cancel(); } catch(e) {}
       speechSynthesis.speak(u);
     }
+    const intro = "Este é Saturno, o segundo maior planeta do Sistema Solar. Seus anéis são compostos principalmente por gelo de água e poeira. Entre suas luas, destacam-se Titã e Encélado.";
 
-    // Texto curto para iniciar quando a RA começar
-    const intro = "Este é Saturno, o segundo maior planeta do Sistema Solar. Seus anéis são compostos principalmente por gelo de água e poeira. Entre suas muitas luas, destacam-se Titã e Encélado.";
-
-    // ====== ENTRADA EM RA ======
-    // Força WebXR para manter a página ativa (chat/voz continuam durante a AR)
+    // ===== Entrar em RA =====
     btnARWebXR.addEventListener('click', async () => {
       try {
-        // ‘Desbloqueia’ as vozes por gesto do usuário (alguns navegadores exigem)
-        if ('speechSynthesis' in window) speechSynthesis.getVoices();
+        if ('speechSynthesis' in window) speechSynthesis.getVoices(); // desbloqueia por gesto
         if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {
-          mv.setAttribute('ar-modes', 'webxr');
+          mv.setAttribute('ar-modes', 'webxr'); // mantém a página ativa
         }
-      } catch(e) { /* segue mesmo assim */ }
+      } catch(e) {}
       if (mv.enterAR) mv.enterAR();
     });
 
-    // Compatibilidade (pode abrir Scene Viewer / Quick Look e a página pausa; voz não roda nesse fluxo)
     btnARCompat.addEventListener('click', () => {
-      mv.setAttribute('ar-modes', 'scene-viewer quick-look webxr');
+      mv.setAttribute('ar-modes', 'scene-viewer quick-look webxr'); // pode abrir app externo (sem JS ativo)
       if (mv.enterAR) mv.enterAR();
     });
 
-    // Quando a sessão AR começa via WebXR, iniciamos a narração
+    // Narração quando a sessão AR começa (WebXR)
     mv.addEventListener('ar-status', (ev) => {
       const status = ev.detail.status || ev.detail;
-      // Possíveis statuses: "not-presenting", "session-started", "object-placed"
-      if (status === 'session-started') {
-        // Fala a introdução ao entrar no AR
-        speak(intro);
-      }
-      if (status === 'not-presenting') {
-        // Saiu do AR: interrompe qualquer fala pendente
-        if ('speechSynthesis' in window) speechSynthesis.cancel();
-      }
-    });
-
-    // ====== CONTROLES DE VOZ ======
-    btnToggleVoice.addEventListener('click', () => {
-      voiceOn = !voiceOn;
-      btnToggleVoice.textContent = voiceOn ? '🔊 Voz: ativada' : '🔇 Voz: desativada';
-      if (!voiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
-    });
-
-    btnTestVoice.addEventListener('click', () => {
-      speak("Teste de voz. Se você está ouvindo, a narração funcionará quando a realidade aumentada começar.");
+      if (status === 'session-started') speak(intro);
+      if (status === 'not-presenting' && 'speechSynthesis' in window) speechSynthesis.cancel();
     });
   </script>
 </body>
