@@ -1,172 +1,203 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Saturno em RA — Interação por Chat</title>
-    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-    <style>
-      :root { --bg:#0b0b0b; --ink:#e8e8e8; --muted:#9aa0a6; --card:#121212; --accent:#3b82f6; }
-      * { box-sizing: border-box; }
-      body {
-        margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-        background:var(--bg); color:var(--ink); display:flex; flex-direction:column; min-height:100vh;
+<head>
+  <meta charset="UTF-8" />
+  <title>Saturno em RA — Interação em AR (WebXR)</title>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0b0b0b; --ink:#e8e8e8; --muted:#9aa0a6; --card:#121212; --accent:#3b82f6; }
+    * { box-sizing: border-box; }
+    body {
+      margin:0; background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      min-height:100vh; display:flex; flex-direction:column;
+    }
+    header { padding:16px; text-align:center; }
+    model-viewer { width:100%; height: 62vh; background:#000; }
+    .toolbar {
+      display:flex; gap:8px; justify-content:center; padding:10px; flex-wrap:wrap;
+    }
+    .toolbar button {
+      padding:10px 12px; border-radius:10px; border:1px solid #2a2a2a; cursor:pointer;
+      background:var(--accent); color:white; font-weight:600;
+    }
+    /* Painel de chat flutuante que fica visível também no AR WebXR */
+    .chat {
+      position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 10;
+      display: grid; grid-template-columns: 1fr auto; gap:8px;
+      background: rgba(18,18,18,.85); border: 1px solid #262626; border-radius: 14px; backdrop-filter: blur(6px);
+      padding: 8px; box-shadow: 0 6px 30px rgba(0,0,0,.45);
+    }
+    .chat input[type="text"] {
+      padding: 12px; border-radius: 10px; border:1px solid #333; background:#0b0b0b; color:#e5e5e5;
+    }
+    .chat button { padding: 12px 14px; border-radius: 10px; border:1px solid #2a2a2a; background:#1f2937; color:#dbeafe; font-weight:600; }
+    .chat .log {
+      grid-column: 1 / -1;
+      max-height: 24vh; overflow:auto; display:flex; flex-direction:column; gap:8px; padding:6px 4px 0 4px;
+    }
+    .msg { max-width: 90%; padding:8px 10px; border-radius: 12px; font-size: 14px; line-height:1.35; }
+    .bot { align-self:flex-start; background:#111827; border:1px solid #1f2937; color:#e5e7eb; }
+    .user { align-self:flex-end; background:#1e293b; border:1px solid #0b1b2c; color:#e2e8f0; }
+    .hint { text-align:center; color:#a3a3a3; font-size: 12px; padding: 6px 0 10px; }
+  </style>
+</head>
+<body>
+  <header><h1>🌌 Saturno em Realidade Aumentada — interação durante a RA</h1></header>
+
+  <model-viewer id="mv"
+    src="saturno.glb"
+    ar
+    ar-modes="webxr scene-viewer"  <!-- WebXR primeiro para manter a interação -->
+    ar-placement="floor"
+    ar-hit-test
+    camera-controls
+    auto-rotate
+    rotation-per-second="25deg"
+    shadow-intensity="1"
+    exposure="1"
+    alt="Modelo 3D de Saturno em RA">
+  </model-viewer>
+
+  <div class="toolbar">
+    <button id="ar-webxr">AR com interação (WebXR)</button>
+    <button id="ar-compat">AR (compatibilidade)</button>
+    <button id="b-maior">Maior</button>
+    <button id="b-menor">Menor</button>
+    <button id="b-reset">Reset</button>
+  </div>
+
+  <!-- Chat flutuante (fica por cima também no AR-WebXR) -->
+  <section class="chat" aria-label="Chat de comandos">
+    <div id="log" class="log">
+      <div class="msg bot">Olá! No **AR com interação (WebXR)** o chat continua ativo. Tente: “maior”, “menor”, “reset”, “entrar em RA”, “quantas luas tem saturno?”.</div>
+      <div class="msg bot">Dica: mova o celular devagar para detectar o piso; toque para posicionar Saturno.</div>
+    </div>
+    <input id="ask" type="text" placeholder="Digite um comando (ex.: maior, entrar em RA, quantas luas...)" />
+    <button id="send">Enviar</button>
+    <div class="hint">Se abrir via Scene Viewer (app externo), a interação em tempo real não funciona. Use “AR com interação (WebXR)”.</div>
+  </section>
+
+  <script>
+    const mv   = document.getElementById('mv');
+    const log  = document.getElementById('log');
+    const ask  = document.getElementById('ask');
+    const send = document.getElementById('send');
+
+    // Botões rápidos
+    document.getElementById('b-maior').onclick = () => addBoth('maior');
+    document.getElementById('b-menor').onclick = () => addBoth('menor');
+    document.getElementById('b-reset').onclick = () => addBoth('reset');
+
+    // Entrar em AR forçando WebXR (mantém interação)
+    document.getElementById('ar-webxr').onclick = async () => {
+      // Se o dispositivo suporta WebXR, mantemos apenas "webxr" para evitar abrir o Scene Viewer
+      try {
+        if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {
+          mv.setAttribute('ar-modes', 'webxr'); // força WebXR
+        } else {
+          addMsg('Seu dispositivo não suporta WebXR; vou tentar abrir pelo modo compatível.', 'bot');
+        }
+      } catch(e) {/* segue adiante */}
+      if (mv.enterAR) mv.enterAR();
+      else addMsg('AR não suportado neste navegador/dispositivo.', 'bot');
+    };
+
+    // AR compatibilidade (pode abrir Scene Viewer, sem interação em tempo real)
+    document.getElementById('ar-compat').onclick = () => {
+      mv.setAttribute('ar-modes', 'scene-viewer quick-look webxr');
+      if (mv.enterAR) mv.enterAR();
+      else addMsg('AR não suportado neste navegador/dispositivo.', 'bot');
+    };
+
+    // Estado: escala inicial mais contida
+    let scale = 0.28;
+
+    mv.addEventListener('load', () => {
+      applyScale(scale);
+    });
+
+    // Eventos úteis no AR
+    mv.addEventListener('ar-status', (ev) => {
+      // values comuns: "not-presenting" | "session-started" | "object-placed"
+      addMsg(`AR status: ${ev.detail.status || ev.detail}`, 'bot');
+      if (ev.detail.status === 'session-started') {
+        // Em AR, muitos devices desativam auto-rotate;
+        // mantemos o chat visível para controle de escala/explicações.
+        applyScale(scale);
       }
-      header { padding:16px; text-align:center; }
-      main { display:grid; grid-template-columns: 1fr 360px; gap:16px; padding:16px; max-width:1200px; width:100%; margin:0 auto; }
-      @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-      model-viewer { width:100%; height:520px; background:#000; border-radius:16px; }
-      .panel {
-        background:var(--card); border:1px solid #1f1f1f; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; min-height:520px;
+    });
+
+    function addMsg(text, who='bot') {
+      const div = document.createElement('div');
+      div.className = 'msg ' + who;
+      div.innerHTML = text;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+    function addBoth(text) {
+      addMsg(text, 'user');
+      addMsg(interpret(text), 'bot');
+    }
+
+    function applyScale(s) {
+      scale = Math.max(0.02, Math.min(5.0, s));
+      try {
+        if (mv.model && mv.model.scale) {
+          mv.model.scale.set(scale, scale, scale);
+        }
+      } catch(e) {
+        // Em algumas versões antigas o acesso direto pode não existir; ignoramos
       }
-      .panel h2 { margin:0; padding:12px 16px; border-bottom:1px solid #1f1f1f; font-size:16px; color:#cbd5e1; }
-      .chat-log { flex:1; padding:12px; overflow:auto; display:flex; flex-direction:column; gap:10px; }
-      .msg { max-width:85%; padding:10px 12px; border-radius:14px; line-height:1.35; font-size:14px; }
-      .user { align-self:flex-end; background:#1e293b; color:#e2e8f0; border:1px solid #0b1b2c; }
-      .bot  { align-self:flex-start;  background:#111827; color:#e5e7eb; border:1px solid #1f2937; }
-      .muted { color:var(--muted); font-size:12px; }
-      .composer { display:flex; gap:8px; padding:12px; border-top:1px solid #1f1f1f; background:#0e0e0e; }
-      input[type="text"] {
-        flex:1; padding:12px; border-radius:10px; border:1px solid #262626; background:#0b0b0b; color:#e5e5e5;
-      }
-      button {
-        padding:12px 14px; border-radius:10px; border:1px solid #2a2a2a; background:var(--accent); color:white; cursor:pointer; font-weight:600;
-      }
-      .quick { display:flex; flex-wrap:wrap; gap:8px; padding:10px 12px; border-top:1px dashed #222; }
-      .quick button { background:#1f2937; border:1px solid #273449; color:#dbeafe; }
-      .hint { text-align:center; padding:8px 16px; color:#a3a3a3; }
-    </style>
-  </head>
-  <body>
-    <header><h1>🌌 Saturno em Realidade Aumentada — com interação por chat</h1></header>
+      return `Escala: ${(scale*100).toFixed(0)}%`;
+    }
 
-    <main>
-      <model-viewer id="saturn"
-        src="saturno.glb"
-        ar
-        ar-modes="scene-viewer quick-look webxr"
-        camera-controls
-        auto-rotate
-        rotation-per-second="25deg"
-        shadow-intensity="1"
-        exposure="1"
-        alt="Modelo 3D de Saturno em Realidade Aumentada">
-      </model-viewer>
+    async function enterARInteractive() {
+      // força WebXR (se suportado) e entra no AR
+      try {
+        if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {
+          mv.setAttribute('ar-modes', 'webxr');
+        }
+      } catch(e) {}
+      if (mv.enterAR) mv.enterAR();
+      return 'Abrindo RA em modo interativo (WebXR)...';
+    }
 
-      <section class="panel" aria-label="Painel de chat">
-        <h2>Chat de Comandos</h2>
-        <div id="log" class="chat-log">
-          <div class="msg bot">Olá! Posso controlar o Saturno. Tente: <em>“girar mais devagar”</em>, <em>“parar rotação”</em>, <em>“maior”</em>, <em>“entrar em RA”</em>.</div>
-          <div class="msg bot muted">Dica: no Android o botão de RA aparece; em desktop não.</div>
-        </div>
+    function interpret(command) {
+      const t = command.toLowerCase().trim();
 
-        <div class="quick">
-          <button data-q="girar mais devagar">girar mais devagar</button>
-          <button data-q="girar mais rápido">girar mais rápido</button>
-          <button data-q="parar rotação">parar rotação</button>
-          <button data-q="reset">reset</button>
-          <button data-q="maior">maior</button>
-          <button data-q="menor">menor</button>
-          <button data-q="entrar em RA">entrar em RA</button>
-        </div>
-
-        <div class="composer">
-          <input id="ask" type="text" placeholder="Digite um comando (ex.: girar mais devagar)" />
-          <button id="send">Enviar</button>
-        </div>
-        <div class="hint">Depois que estiver funcionando, posso integrar com ChatGPT pela API (modo IA completo).</div>
-      </section>
-    </main>
-
-    <script>
-      const mv = document.getElementById('saturn');
-      const log = document.getElementById('log');
-      const ask = document.getElementById('ask');
-      const send = document.getElementById('send');
-      const quicks = document.querySelectorAll('.quick button');
-
-      // Estado simples
-      let scale = 0.28;      // escala inicial
-      let rot = 25;          // graus/seg
-      let autoRotate = true; // rotação ligada?
-
-      // Quando o modelo carregar, aplicamos a escala inicial
-      mv.addEventListener('load', () => {
-        try {
-          if (mv.model && mv.model.scale) mv.model.scale.set(scale, scale, scale);
-        } catch (e) { /* versões antigas podem não expor scale; ignorar */ }
-      });
-
-      function setScale(newS) {
-        scale = Math.max(0.02, Math.min(5.0, newS));
-        try { if (mv.model?.scale) mv.model.scale.set(scale, scale, scale); } catch(e){}
-        return `Escala: ${(scale*100).toFixed(0)}%`;
-      }
-      function setRotationSpeed(newDegPerSec) {
-        rot = Math.max(0, Math.min(120, newDegPerSec));
-        mv.setAttribute('rotation-per-second', rot + 'deg');
-        if (rot === 0) { mv.removeAttribute('auto-rotate'); autoRotate = false; }
-        else if (!autoRotate) { mv.setAttribute('auto-rotate',''); autoRotate = true; }
-        return rot === 0 ? 'Rotação parada.' : `Rotação em ${rot}°/s.`;
-      }
-      function stopRotation() {
-        rot = 0; mv.removeAttribute('auto-rotate'); autoRotate = false;
-        mv.setAttribute('rotation-per-second','0deg');
-        return 'Rotação parada.';
-      }
-      function resetAll() {
-        scale = 0.28; setRotationSpeed(25);
-        try { if (mv.model?.scale) mv.model.scale.set(scale, scale, scale); } catch(e){}
-        return 'Voltei ao padrão (escala 28%, rotação 25°/s).';
-      }
-      async function enterAR() {
-        if (mv.enterAR) { mv.enterAR(); return 'Abrindo em RA (Android).';
-        } else { return 'Abertura em RA não suportada neste dispositivo.'; }
+      // AR direto
+      if (/entrar.*ra|abrir.*ra|realidade aumentada/.test(t)) {
+        enterARInteractive();
+        return 'Tentando abrir RA em modo interativo (WebXR).';
       }
 
-      function addMsg(text, who='bot') {
-        const div = document.createElement('div');
-        div.className = 'msg ' + who;
-        div.innerHTML = text;
-        log.appendChild(div);
-        log.scrollTop = log.scrollHeight;
-      }
+      // Escala (funciona no 3D e no AR-WebXR)
+      if (/maior|aumentar|ampliar|zoom in/.test(t)) return applyScale(scale * 1.25);
+      if (/menor|diminuir|reduzir|zoom out/.test(t)) return applyScale(scale * 0.8);
+      if (/reset|padr[aã]o|in[ií]cio/.test(t))      return applyScale(0.28);
 
-      function interpret(command) {
-        const t = command.toLowerCase();
+      // Perguntas rápidas (sem IA ainda)
+      if (/an[eé]is.*(do que|composta|compostos|feitos)/.test(t))
+        return 'Os anéis de Saturno são formados principalmente por gelo de água misturado com poeira e fragmentos rochosos.';
+      if (/quantas.*luas|n[uú]meros?.*luas/.test(t))
+        return 'Saturno tem mais de 140 luas e quase-luas conhecidas; Titã e Encélado são destaques.';
+      if (/gravidade|massa|raio/.test(t))
+        return 'Saturno é um gigante gasoso de baixa densidade; gravidade superficial ~10,4 m/s² e raio ~9,5 vezes o da Terra.';
 
-        // Rotação
-        if (/(parar|pausar).*(giro|rotação)/.test(t) || /^parar$/.test(t)) return stopRotation();
-        if (/(girar|rotacionar).*(devagar|lento)/.test(t) || /(mais devagar)/.test(t)) return setRotationSpeed(Math.max(0, rot - 10));
-        if (/(girar|rotacionar).*(rápido|rapido|veloz)/.test(t) || /(mais rápido|mais rapido)/.test(t)) return setRotationSpeed(Math.min(120, rot + 10));
-        if (/reset|padr[aã]o|in[ií]cio/.test(t)) return resetAll();
+      return 'Comandos úteis: “entrar em RA”, “maior”, “menor”, “reset”, “quantas luas tem saturno?”.';
+    }
 
-        // Escala
-        if (/maior|aumentar|ampliar|zoom in/.test(t)) return setScale(scale * 1.25);
-        if (/menor|diminuir|reduzir|zoom out/.test(t)) return setScale(scale * 0.8);
-
-        // RA
-        if (/entrar.*ra|abrir.*ra|realidade aumentada/.test(t)) { enterAR(); return 'Tentando abrir em RA…'; }
-
-        // Perguntas rápidas (FAQ sem IA)
-        if (/an[eé]is.*(do que|composta|compostos|feitos)/.test(t)) return 'Os anéis de Saturno são compostos principalmente por gelo de água com poeira e fragmentos rochosos.';
-        if (/quantas.*luas|n[uú]meros?.*luas/.test(t)) return 'Saturno tem mais de 140 luas e “quase-luas” identificadas; Titã e Encélado são algumas das mais famosas.';
-        if (/gravidade|massa|raio/.test(t)) return 'Saturno tem densidade média baixa (menor que a da água) e gravidade superficial ~10,4 m/s²; é um gigante gasoso com raio ~9,5 vezes o da Terra.';
-        if (/n[aã]o aparece.*[íi]cone.*ra/.test(t)) return 'No desktop o botão de RA não aparece. Teste no Android com ARCore ou no iPhone com um arquivo .usdz configurado.';
-
-        return 'Não entendi. Tente: “girar mais devagar”, “parar rotação”, “maior”, “entrar em RA”, “reset”.';
-      }
-
-      function submit(cmd) {
-        if (!cmd.trim()) return;
-        addMsg(cmd, 'user');
-        const out = interpret(cmd);
-        addMsg(out, 'bot');
-        ask.value = '';
-      }
-
-      send.addEventListener('click', () => submit(ask.value));
-      ask.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(ask.value); });
-      quicks.forEach(b => b.addEventListener('click', () => submit(b.dataset.q)));
-    </script>
-  </body>
+    function submit() {
+      const val = ask.value;
+      if (!val.trim()) return;
+      addMsg(val, 'user');
+      const out = interpret(val);
+      addMsg(out, 'bot');
+      ask.value = '';
+    }
+    send.addEventListener('click', submit);
+    ask.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  </script>
+</body>
 </html>
